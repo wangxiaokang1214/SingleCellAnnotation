@@ -4,94 +4,467 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>基因分类匹配系统</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
             line-height: 1.6;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
+            margin: 0;
+            padding: 0;
             color: #333;
-        }
-        h1 {
-            color: #2c3e50;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
+            background-color: #f8f9fa;
         }
         .container {
-            background-color: #f9f9f9;
-            border-radius: 8px;
+            max-width: 1200px;
+            margin: 0 auto;
             padding: 20px;
-            margin: 20px 0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        code {
-            background-color: #f5f5f5;
-            padding: 2px 5px;
-            border-radius: 3px;
-            font-family: monospace;
+        .card {
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
-        pre {
-            background-color: #f5f5f5;
-            padding: 15px;
-            border-radius: 5px;
-            overflow-x: auto;
-        }
-        .button {
-            display: inline-block;
-            background-color: #3498db;
+        .card-header {
+            background-color: #4285f4;
             color: white;
-            padding: 10px 20px;
-            text-decoration: none;
-            border-radius: 5px;
-            margin: 10px 0;
+            font-weight: bold;
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
         }
-        .button:hover {
-            background-color: #2980b9;
+        .form-label {
+            font-weight: bold;
+        }
+        .result-heading {
+            background-color: #f1f3f4;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .matching-genes {
+            background-color: #e8f0fe;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 5px;
+        }
+        #loadingSpinner {
+            display: none;
+        }
+        .result-item {
+            margin-bottom: 15px;
+            border-left: 4px solid #4285f4;
+            padding-left: 15px;
+        }
+        .text-area-container {
+            position: relative;
+        }
+        .text-area-placeholder {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #999;
+            pointer-events: none;
+            font-size: 14px;
+            transition: opacity 0.2s;
+        }
+        textarea:focus + .text-area-placeholder, 
+        textarea:not(:placeholder-shown) + .text-area-placeholder {
+            opacity: 0;
+        }
+        .btn-primary {
+            background-color: #4285f4;
+            border-color: #4285f4;
+        }
+        .btn-primary:hover {
+            background-color: #3367d6;
+            border-color: #3367d6;
+        }
+        .nav-tabs .nav-link.active {
+            font-weight: bold;
+            color: #4285f4;
+            border-color: #4285f4 #dee2e6 #fff;
         }
     </style>
 </head>
 <body>
-    <h1>基因分类匹配系统</h1>
+    <div class="container">
+        <h1 class="mb-4 text-center py-3">基因分类匹配系统</h1>
+        
+        <div class="card mb-4">
+            <div class="card-header">参考数据</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <ul class="nav nav-tabs" id="refDataTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="ref-file-tab" data-bs-toggle="tab" data-bs-target="#ref-file" type="button" role="tab">上传文件</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="ref-manual-tab" data-bs-toggle="tab" data-bs-target="#ref-manual" type="button" role="tab">手动输入</button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content mt-3">
+                        <div class="tab-pane fade show active" id="ref-file" role="tabpanel">
+                            <label for="refDataFile" class="form-label">上传参考数据文件 (Excel或CSV格式)</label>
+                            <input class="form-control" type="file" id="refDataFile" accept=".xlsx,.xls,.csv">
+                            <small class="text-muted">文件必须包含 subclass_label, subclass.markers.combo 和 subclass.tf.markers.combo 列</small>
+                        </div>
+                        <div class="tab-pane fade" id="ref-manual" role="tabpanel">
+                            <label class="form-label">手动输入参考数据</label>
+                            <div class="text-area-container">
+                                <textarea id="refDataText" class="form-control" rows="6" placeholder=" "></textarea>
+                                <div class="text-area-placeholder">输入格式示例:
+subclass_label	subclass.markers.combo	subclass.tf.markers.combo
+类型1	基因1,基因2,基因3	转录因子1,转录因子2
+类型2	基因4,基因5,基因6	转录因子3,转录因子4</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">用户数据</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <ul class="nav nav-tabs" id="userDataTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="user-file-tab" data-bs-toggle="tab" data-bs-target="#user-file" type="button" role="tab">上传文件</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="user-manual-tab" data-bs-toggle="tab" data-bs-target="#user-manual" type="button" role="tab">手动输入</button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content mt-3">
+                        <div class="tab-pane fade show active" id="user-file" role="tabpanel">
+                            <label for="userDataFile" class="form-label">上传用户数据文件 (Excel或CSV格式)</label>
+                            <input class="form-control" type="file" id="userDataFile" accept=".xlsx,.xls,.csv">
+                            <small class="text-muted">文件必须包含 cluster 和 gene 列</small>
+                        </div>
+                        <div class="tab-pane fade" id="user-manual" role="tabpanel">
+                            <label class="form-label">手动输入用户数据</label>
+                            <div class="text-area-container">
+                                <textarea id="userDataText" class="form-control" rows="6" placeholder=" "></textarea>
+                                <div class="text-area-placeholder">输入格式示例:
+cluster	gene
+1	基因A
+1	基因B
+2	基因C
+2	基因D</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">匹配设置</div>
+            <div class="card-body">
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="secondMatchSwitch" checked>
+                    <label class="form-check-label" for="secondMatchSwitch">进行转录因子二次匹配</label>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button id="matchButton" class="btn btn-primary btn-lg">执行匹配分析</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="loadingSpinner" class="text-center my-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">加载中...</span>
+            </div>
+            <p class="mt-2">正在分析数据，请稍候...</p>
+        </div>
+        
+        <div id="resultsContainer" class="card d-none">
+            <div class="card-header">匹配结果</div>
+            <div class="card-body">
+                <div id="resultsContent"></div>
+            </div>
+        </div>
+    </div>
     
-    <div class="container">
-        <h2>项目简介</h2>
-        <p>这是一个用于基因分类匹配的 Python 工具，可以根据参考数据对用户提供的基因数据进行分类和匹配。</p>
-    </div>
-
-    <div class="container">
-        <h2>功能特点</h2>
-        <ul>
-            <li>支持 Excel 和 CSV 格式的数据文件</li>
-            <li>自动计算基因匹配分数</li>
-            <li>支持转录因子二次匹配</li>
-            <li>详细的匹配结果展示</li>
-        </ul>
-    </div>
-
-    <div class="container">
-        <h2>快速开始</h2>
-        <p>1. 克隆仓库：</p>
-        <pre><code>git clone https://github.com/wangxiaokang1214/SingleCellAnnotation.git
-cd SingleCellAnnotation</code></pre>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 全局变量存储数据
+        let referenceData = null;
+        let userData = null;
         
-        <p>2. 安装依赖：</p>
-        <pre><code>pip install -r requirements.txt</code></pre>
+        // 解析Excel或CSV文件
+        function parseFile(file, callback) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = e.target.result;
+                if (file.name.endsWith('.csv')) {
+                    // 解析CSV
+                    Papa.parse(data, {
+                        header: true,
+                        complete: function(results) {
+                            callback(results.data);
+                        }
+                    });
+                } else {
+                    // 解析Excel
+                    const workbook = XLSX.read(data, { type: 'binary' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                    callback(jsonData);
+                }
+            };
+            
+            if (file.name.endsWith('.csv')) {
+                reader.readAsText(file);
+            } else {
+                reader.readAsBinaryString(file);
+            }
+        }
         
-        <p>3. 运行程序：</p>
-        <pre><code>python gene_matcher.py</code></pre>
-    </div>
-
-    <div class="container">
-        <h2>文档</h2>
-        <p>详细的文档和使用说明请访问：</p>
-        <a href="https://github.com/wangxiaokang1214/SingleCellAnnotation/blob/main/README.md" class="button">查看文档</a>
-    </div>
-
-    <div class="container">
-        <h2>下载</h2>
-        <p>您可以直接下载源代码：</p>
-        <a href="https://github.com/wangxiaokang1214/SingleCellAnnotation/archive/main.zip" class="button">下载 ZIP</a>
-    </div>
+        // 解析手动输入的表格数据
+        function parseManualInput(text) {
+            const results = Papa.parse(text, {
+                delimiter: '\t',
+                header: true,
+                skipEmptyLines: true
+            });
+            return results.data;
+        }
+        
+        // 处理参考数据
+        function processReferenceData(data) {
+            const refDict = {};
+            const tfDict = {};
+            
+            for (const row of data) {
+                const subclass = row['subclass_label'];
+                const markerGenes = row['subclass.markers.combo'].split(',').map(g => g.trim());
+                const tfGenes = row['subclass.tf.markers.combo'] ? 
+                    row['subclass.tf.markers.combo'].split(',').map(g => g.trim()) : [];
+                
+                refDict[subclass] = markerGenes;
+                tfDict[subclass] = tfGenes;
+            }
+            
+            return { refDict, tfDict };
+        }
+        
+        // 处理用户数据
+        function processUserData(data) {
+            const userDict = {};
+            
+            for (const row of data) {
+                const cluster = row['cluster'];
+                const gene = row['gene'];
+                
+                if (!userDict[cluster]) {
+                    userDict[cluster] = [];
+                }
+                userDict[cluster].push(gene);
+            }
+            
+            return userDict;
+        }
+        
+        // 计算匹配分数
+        function calculateMatchingScore(userGenes, referenceGenes, isTf = false) {
+            // 转换为集合去重
+            const userGeneSet = new Set(userGenes);
+            const refGeneSet = new Set(referenceGenes);
+            
+            if (refGeneSet.size === 0) {
+                return 0;
+            }
+            
+            // 计算交集
+            const matchingGenes = [...userGeneSet].filter(gene => refGeneSet.has(gene));
+            
+            // 根据是否为转录因子计算分数
+            const score = matchingGenes.length * (isTf ? 1 : 10);
+            return { score, matchingGenes };
+        }
+        
+        // 找到最佳匹配
+        function findBestMatch(userGenes, refDict, tfDict = null) {
+            let bestMatch = null;
+            let bestScore = 0;
+            const matches = {};
+            const matchingGenesDict = {};
+            const tfMatchingGenesDict = {};
+            
+            for (const subclass in refDict) {
+                // 计算marker基因匹配
+                const { score: markerScore, matchingGenes } = calculateMatchingScore(userGenes, refDict[subclass], false);
+                matches[subclass] = markerScore;
+                matchingGenesDict[subclass] = matchingGenes;
+                
+                // 如果有转录因子数据，计算转录因子匹配
+                if (tfDict) {
+                    const { score: tfScore, matchingGenes: tfMatchingGenes } = calculateMatchingScore(userGenes, tfDict[subclass], true);
+                    tfMatchingGenesDict[subclass] = tfMatchingGenes;
+                    
+                    // 总分 = marker基因分数 + 转录因子分数
+                    const totalScore = markerScore + tfScore;
+                    if (totalScore > bestScore) {
+                        bestScore = totalScore;
+                        bestMatch = subclass;
+                    }
+                } else {
+                    if (markerScore > bestScore) {
+                        bestScore = markerScore;
+                        bestMatch = subclass;
+                    }
+                }
+            }
+            
+            return { bestMatch, bestScore, matches, matchingGenesDict, tfMatchingGenesDict };
+        }
+        
+        // 执行匹配分析
+        function performMatching() {
+            const resultsContainer = document.getElementById('resultsContainer');
+            const resultsContent = document.getElementById('resultsContent');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            
+            // 显示加载动画
+            loadingSpinner.style.display = 'block';
+            resultsContainer.classList.add('d-none');
+            
+            // 清空之前的结果
+            resultsContent.innerHTML = '';
+            
+            // 检查数据是否已加载
+            if (!referenceData || !userData) {
+                alert('请先上传或输入参考数据和用户数据');
+                loadingSpinner.style.display = 'none';
+                return;
+            }
+            
+            // 处理数据
+            const { refDict, tfDict } = processReferenceData(referenceData);
+            const userDict = processUserData(userData);
+            
+            // 是否进行二次匹配
+            const doSecondMatch = document.getElementById('secondMatchSwitch').checked;
+            
+            // 创建结果HTML
+            let resultsHtml = '';
+            
+            // 分析每个cluster
+            for (const cluster in userDict) {
+                const genes = userDict[cluster];
+                const { bestMatch, bestScore, matches, matchingGenesDict, tfMatchingGenesDict } = 
+                    doSecondMatch ? findBestMatch(genes, refDict, tfDict) : findBestMatch(genes, refDict);
+                
+                resultsHtml += `<div class="result-item">`;
+                resultsHtml += `<h4>Cluster ${cluster}</h4>`;
+                
+                if (!bestMatch) {
+                    resultsHtml += `<p>未找到匹配的细胞类型</p>`;
+                } else {
+                    resultsHtml += `<p><strong>最佳匹配:</strong> ${bestMatch}</p>`;
+                    resultsHtml += `<p><strong>匹配分数:</strong> ${bestScore}</p>`;
+                    
+                    if (doSecondMatch) {
+                        resultsHtml += `<div class="matching-genes">`;
+                        resultsHtml += `<p><strong>匹配到的marker基因:</strong> ${matchingGenesDict[bestMatch].join(', ') || '无'}</p>`;
+                        resultsHtml += `<p><strong>匹配到的转录因子:</strong> ${tfMatchingGenesDict[bestMatch].join(', ') || '无'}</p>`;
+                        resultsHtml += `</div>`;
+                    } else {
+                        resultsHtml += `<div class="matching-genes">`;
+                        resultsHtml += `<p><strong>匹配到的基因:</strong> ${matchingGenesDict[bestMatch].join(', ') || '无'}</p>`;
+                        resultsHtml += `</div>`;
+                    }
+                }
+                
+                // 显示所有匹配分数
+                resultsHtml += `<div class="result-heading mt-3">与所有细胞类型的匹配分数:</div>`;
+                
+                // 按分数排序
+                const sortedMatches = Object.entries(matches)
+                    .sort((a, b) => b[1] - a[1])
+                    .filter(([_, score]) => score > 0);
+                
+                for (const [subclass, score] of sortedMatches) {
+                    resultsHtml += `<div class="mt-2">`;
+                    
+                    if (doSecondMatch) {
+                        const tfScore = calculateMatchingScore(genes, tfDict[subclass], true).score;
+                        resultsHtml += `<p><strong>${subclass}:</strong></p>`;
+                        resultsHtml += `<p>Marker基因匹配分数: ${score}</p>`;
+                        resultsHtml += `<p>转录因子匹配分数: ${tfScore}</p>`;
+                        resultsHtml += `<div class="matching-genes">`;
+                        resultsHtml += `<p>匹配到的marker基因: ${matchingGenesDict[subclass].join(', ') || '无'}</p>`;
+                        resultsHtml += `<p>匹配到的转录因子: ${tfMatchingGenesDict[subclass].join(', ') || '无'}</p>`;
+                        resultsHtml += `</div>`;
+                    } else {
+                        resultsHtml += `<p><strong>${subclass}:</strong> ${score}</p>`;
+                        resultsHtml += `<div class="matching-genes">`;
+                        resultsHtml += `<p>匹配到的基因: ${matchingGenesDict[subclass].join(', ') || '无'}</p>`;
+                        resultsHtml += `</div>`;
+                    }
+                    
+                    resultsHtml += `</div>`;
+                }
+                
+                resultsHtml += `</div><hr>`;
+            }
+            
+            // 显示结果
+            resultsContent.innerHTML = resultsHtml;
+            
+            // 隐藏加载动画，显示结果
+            loadingSpinner.style.display = 'none';
+            resultsContainer.classList.remove('d-none');
+        }
+        
+        // 事件监听器
+        document.addEventListener('DOMContentLoaded', function() {
+            // 参考数据文件上传
+            document.getElementById('refDataFile').addEventListener('change', function(e) {
+                if (this.files.length > 0) {
+                    parseFile(this.files[0], function(data) {
+                        referenceData = data;
+                        alert('参考数据已成功加载！');
+                    });
+                }
+            });
+            
+            // 用户数据文件上传
+            document.getElementById('userDataFile').addEventListener('change', function(e) {
+                if (this.files.length > 0) {
+                    parseFile(this.files[0], function(data) {
+                        userData = data;
+                        alert('用户数据已成功加载！');
+                    });
+                }
+            });
+            
+            // 手动输入参考数据
+            document.getElementById('refDataText').addEventListener('change', function() {
+                if (this.value.trim()) {
+                    referenceData = parseManualInput(this.value);
+                    alert('参考数据已成功加载！');
+                }
+            });
+            
+            // 手动输入用户数据
+            document.getElementById('userDataText').addEventListener('change', function() {
+                if (this.value.trim()) {
+                    userData = parseManualInput(this.value);
+                    alert('用户数据已成功加载！');
+                }
+            });
+            
+            // 执行匹配按钮点击
+            document.getElementById('matchButton').addEventListener('click', performMatching);
+        });
+    </script>
 </body>
 </html> 
