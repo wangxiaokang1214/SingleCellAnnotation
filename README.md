@@ -2,6 +2,9 @@
 
 这是一个用于基因分类匹配的单细胞注释工具，可以根据参考数据对用户提供的基因数据进行分类和匹配。
 
+# 数据来源
+Yao, Z., van Velthoven, C.T.J., Kunst, M. et al. A high-resolution transcriptomic and spatial atlas of cell types in the whole mouse brain. Nature 624, 317–332 (2023). https://doi.org/10.1038/s41586-023-06812-z
+
 ## 功能特点
 
 - 支持 Excel 和 CSV 格式的数据文件
