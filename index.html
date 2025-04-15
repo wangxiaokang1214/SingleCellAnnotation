@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marker匹配系统</title>
+    <title>基因分类匹配系统</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -90,7 +90,7 @@
 </head>
 <body>
     <div class="container">
-        <h1 class="mb-4 text-center py-3">单细胞注释工具</h1>
+        <h1 class="mb-4 text-center py-3">注释工具</h1>
         
         <div class="card mb-4">
             <div class="card-header">参考数据</div>
@@ -98,18 +98,26 @@
                 <div class="mb-3">
                     <ul class="nav nav-tabs" id="refDataTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="ref-file-tab" data-bs-toggle="tab" data-bs-target="#ref-file" type="button" role="tab">上传文件</button>
+                            <button class="nav-link active" id="ref-default-tab" data-bs-toggle="tab" data-bs-target="#ref-default" type="button" role="tab">使用默认数据</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="ref-file-tab" data-bs-toggle="tab" data-bs-target="#ref-file" type="button" role="tab">上传文件</button>
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="ref-manual-tab" data-bs-toggle="tab" data-bs-target="#ref-manual" type="button" role="tab">手动输入</button>
                         </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="ref-default-tab" data-bs-toggle="tab" data-bs-target="#ref-default" type="button" role="tab">使用默认数据</button>
-                        </li>
                     </ul>
                     
                     <div class="tab-content mt-3">
-                        <div class="tab-pane fade show active" id="ref-file" role="tabpanel">
+                        <div class="tab-pane fade show active" id="ref-default" role="tabpanel">
+                            <div class="alert alert-info">
+                                <p>点击下方按钮使用仓库中的默认参考数据文件 (brain.xlsx)</p>
+                                <button id="loadDefaultRef" class="btn btn-primary">加载默认参考数据</button>
+                                <div id="defaultRefStatus" class="mt-2"></div>
+                                <small class="text-muted">默认数据来源于A high-resolution transcriptomic and spatial atlas of cell types in the whole mouse brain | Nature Supplementary Table 7</small>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="ref-file" role="tabpanel">
                             <label for="refDataFile" class="form-label">上传参考数据文件 (Excel或CSV格式)</label>
                             <input class="form-control" type="file" id="refDataFile" accept=".xlsx,.xls,.csv">
                             <small class="text-muted">文件必须包含 subclass_label, subclass.markers.combo 和 subclass.tf.markers.combo 列</small>
@@ -122,14 +130,6 @@
 subclass_label	subclass.markers.combo	subclass.tf.markers.combo
 类型1	基因1,基因2,基因3	转录因子1,转录因子2
 类型2	基因4,基因5,基因6	转录因子3,转录因子4</div>
-                            </div>
-                        </div>
-                        <div class="tab-pane fade" id="ref-default" role="tabpanel">
-                            <div class="alert alert-info">
-                                <p>点击下方按钮使用仓库中的默认参考数据文件 (brain.xlsx)</p>
-                                <button id="loadDefaultRef" class="btn btn-primary">加载默认参考数据</button>
-                                <div id="defaultRefStatus" class="mt-2"></div>
-                                <small class="text-muted">默认数据来源于A high-resolution transcriptomic and spatial atlas of cell types in the whole mouse brain | Nature Supplementary Table 7</small>
                             </div>
                         </div>
                     </div>
@@ -210,31 +210,58 @@ cluster	gene
         
         // 解析Excel或CSV文件
         function parseFile(file, callback) {
+            console.log("开始解析文件:", file.name, "大小:", file.size, "类型:", file.type);
             const reader = new FileReader();
+            
             reader.onload = function(e) {
-                const data = e.target.result;
-                if (file.name.endsWith('.csv')) {
-                    // 解析CSV
-                    Papa.parse(data, {
-                        header: true,
-                        complete: function(results) {
-                            callback(results.data);
-                        }
-                    });
-                } else {
-                    // 解析Excel
-                    const workbook = XLSX.read(data, { type: 'binary' });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
-                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
-                    callback(jsonData);
+                try {
+                    const data = e.target.result;
+                    console.log("文件读取完成，开始解析...");
+                    
+                    if (file.name.endsWith('.csv')) {
+                        // 解析CSV
+                        console.log("使用Papa Parse解析CSV...");
+                        Papa.parse(data, {
+                            header: true,
+                            complete: function(results) {
+                                console.log("CSV解析完成，数据条数:", results.data.length);
+                                callback(results.data);
+                            },
+                            error: function(error) {
+                                console.error("CSV解析错误:", error);
+                                alert('解析CSV文件时出错: ' + error.message);
+                            }
+                        });
+                    } else {
+                        // 解析Excel
+                        console.log("使用XLSX解析Excel...");
+                        const workbook = XLSX.read(data, { type: 'binary' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                        console.log("Excel解析完成，数据条数:", jsonData.length);
+                        callback(jsonData);
+                    }
+                } catch (error) {
+                    console.error("文件解析出错:", error);
+                    alert('解析文件时出错: ' + error.message);
                 }
             };
             
-            if (file.name.endsWith('.csv')) {
-                reader.readAsText(file);
-            } else {
-                reader.readAsBinaryString(file);
+            reader.onerror = function(error) {
+                console.error("文件读取错误:", error);
+                alert('读取文件时出错');
+            };
+            
+            try {
+                if (file.name.endsWith('.csv')) {
+                    reader.readAsText(file);
+                } else {
+                    reader.readAsBinaryString(file);
+                }
+            } catch (error) {
+                console.error("准备读取文件时出错:", error);
+                alert('准备读取文件时出错: ' + error.message);
             }
         }
         
@@ -250,36 +277,74 @@ cluster	gene
         
         // 处理参考数据
         function processReferenceData(data) {
+            console.log("开始处理参考数据，数据条数:", data.length);
             const refDict = {};
             const tfDict = {};
             
             for (const row of data) {
-                const subclass = row['subclass_label'];
-                const markerGenes = row['subclass.markers.combo'].split(',').map(g => g.trim());
-                const tfGenes = row['subclass.tf.markers.combo'] ? 
-                    row['subclass.tf.markers.combo'].split(',').map(g => g.trim()) : [];
-                
-                refDict[subclass] = markerGenes;
-                tfDict[subclass] = tfGenes;
+                try {
+                    const subclass = row['subclass_label'];
+                    if (!subclass) {
+                        console.warn("跳过没有subclass_label的行:", row);
+                        continue;
+                    }
+                    
+                    // 确保markers.combo是字符串
+                    const markerCombo = row['subclass.markers.combo'];
+                    if (!markerCombo || typeof markerCombo !== 'string') {
+                        console.warn(`${subclass}的subclass.markers.combo不是有效字符串:`, markerCombo);
+                        refDict[subclass] = [];
+                    } else {
+                        refDict[subclass] = markerCombo.split(',').map(g => g.trim());
+                    }
+                    
+                    // 确保tf.markers.combo是字符串
+                    const tfCombo = row['subclass.tf.markers.combo'];
+                    if (!tfCombo || typeof tfCombo !== 'string') {
+                        console.warn(`${subclass}的subclass.tf.markers.combo不是有效字符串:`, tfCombo);
+                        tfDict[subclass] = [];
+                    } else {
+                        tfDict[subclass] = tfCombo.split(',').map(g => g.trim());
+                    }
+                } catch (rowError) {
+                    console.error("处理参考数据行时出错:", rowError, "行数据:", row);
+                }
             }
             
+            console.log("参考数据处理完成，subclass数量:", Object.keys(refDict).length);
             return { refDict, tfDict };
         }
         
         // 处理用户数据
         function processUserData(data) {
+            console.log("开始处理用户数据，数据条数:", data.length);
             const userDict = {};
             
             for (const row of data) {
-                const cluster = row['cluster'];
-                const gene = row['gene'];
-                
-                if (!userDict[cluster]) {
-                    userDict[cluster] = [];
+                try {
+                    const cluster = row['cluster'];
+                    const gene = row['gene'];
+                    
+                    if (!cluster) {
+                        console.warn("跳过没有cluster的行:", row);
+                        continue;
+                    }
+                    
+                    if (!gene) {
+                        console.warn(`跳过cluster ${cluster}没有gene的行:`, row);
+                        continue;
+                    }
+                    
+                    if (!userDict[cluster]) {
+                        userDict[cluster] = [];
+                    }
+                    userDict[cluster].push(gene);
+                } catch (rowError) {
+                    console.error("处理用户数据行时出错:", rowError, "行数据:", row);
                 }
-                userDict[cluster].push(gene);
             }
             
+            console.log("用户数据处理完成，cluster数量:", Object.keys(userDict).length);
             return userDict;
         }
         
@@ -356,83 +421,116 @@ cluster	gene
                 loadingSpinner.style.display = 'none';
                 return;
             }
-            
-            // 处理数据
-            const { refDict, tfDict } = processReferenceData(referenceData);
-            const userDict = processUserData(userData);
-            
-            // 是否进行二次匹配
-            const doSecondMatch = document.getElementById('secondMatchSwitch').checked;
-            
-            // 创建结果HTML
-            let resultsHtml = '';
-            
-            // 分析每个cluster
-            for (const cluster in userDict) {
-                const genes = userDict[cluster];
-                const { bestMatch, bestScore, matches, matchingGenesDict, tfMatchingGenesDict } = 
-                    doSecondMatch ? findBestMatch(genes, refDict, tfDict) : findBestMatch(genes, refDict);
+
+            try {
+                // 处理数据
+                console.log("处理参考数据...");
+                const { refDict, tfDict } = processReferenceData(referenceData);
+                console.log("处理用户数据...");
+                const userDict = processUserData(userData);
                 
-                resultsHtml += `<div class="result-item">`;
-                resultsHtml += `<h4>Cluster ${cluster}</h4>`;
+                // 是否进行二次匹配
+                const doSecondMatch = document.getElementById('secondMatchSwitch').checked;
                 
-                if (!bestMatch) {
-                    resultsHtml += `<p>未找到匹配的细胞类型</p>`;
-                } else {
-                    resultsHtml += `<p><strong>最佳匹配:</strong> ${bestMatch}</p>`;
-                    resultsHtml += `<p><strong>匹配分数:</strong> ${bestScore}</p>`;
+                // 创建结果HTML
+                let resultsHtml = '';
+                
+                console.log("开始分析各个cluster...");
+                // 分析每个cluster
+                for (const cluster in userDict) {
+                    console.log(`分析Cluster ${cluster}...`);
+                    const genes = userDict[cluster];
                     
-                    if (doSecondMatch) {
-                        resultsHtml += `<div class="matching-genes">`;
-                        resultsHtml += `<p><strong>匹配到的marker基因:</strong> ${matchingGenesDict[bestMatch].join(', ') || '无'}</p>`;
-                        resultsHtml += `<p><strong>匹配到的转录因子:</strong> ${tfMatchingGenesDict[bestMatch].join(', ') || '无'}</p>`;
-                        resultsHtml += `</div>`;
-                    } else {
-                        resultsHtml += `<div class="matching-genes">`;
-                        resultsHtml += `<p><strong>匹配到的基因:</strong> ${matchingGenesDict[bestMatch].join(', ') || '无'}</p>`;
-                        resultsHtml += `</div>`;
+                    try {
+                        const result = doSecondMatch ? 
+                            findBestMatch(genes, refDict, tfDict) : 
+                            findBestMatch(genes, refDict);
+                        
+                        const { bestMatch, bestScore, matches, matchingGenesDict, tfMatchingGenesDict } = result;
+                        
+                        resultsHtml += `<div class="result-item">`;
+                        resultsHtml += `<h4>Cluster ${cluster}</h4>`;
+                        
+                        if (!bestMatch) {
+                            resultsHtml += `<p>未找到匹配的细胞类型</p>`;
+                        } else {
+                            resultsHtml += `<p><strong>最佳匹配:</strong> ${bestMatch}</p>`;
+                            resultsHtml += `<p><strong>匹配分数:</strong> ${bestScore}</p>`;
+                            
+                            if (doSecondMatch) {
+                                resultsHtml += `<div class="matching-genes">`;
+                                resultsHtml += `<p><strong>匹配到的marker基因:</strong> ${matchingGenesDict[bestMatch].join(', ') || '无'}</p>`;
+                                resultsHtml += `<p><strong>匹配到的转录因子:</strong> ${tfMatchingGenesDict[bestMatch].join(', ') || '无'}</p>`;
+                                resultsHtml += `</div>`;
+                            } else {
+                                resultsHtml += `<div class="matching-genes">`;
+                                resultsHtml += `<p><strong>匹配到的基因:</strong> ${matchingGenesDict[bestMatch].join(', ') || '无'}</p>`;
+                                resultsHtml += `</div>`;
+                            }
+                        }
+                        
+                        // 显示所有匹配分数
+                        resultsHtml += `<div class="result-heading mt-3">与所有细胞类型的匹配分数:</div>`;
+                        
+                        // 按分数排序
+                        const sortedMatches = Object.entries(matches)
+                            .sort((a, b) => b[1] - a[1])
+                            .filter(([_, score]) => score > 0);
+                        
+                        for (const [subclass, score] of sortedMatches) {
+                            resultsHtml += `<div class="mt-2">`;
+                            
+                            if (doSecondMatch) {
+                                const tfScore = calculateMatchingScore(genes, tfDict[subclass], true).score;
+                                resultsHtml += `<p><strong>${subclass}:</strong></p>`;
+                                resultsHtml += `<p>Marker基因匹配分数: ${score}</p>`;
+                                resultsHtml += `<p>转录因子匹配分数: ${tfScore}</p>`;
+                                resultsHtml += `<div class="matching-genes">`;
+                                resultsHtml += `<p>匹配到的marker基因: ${matchingGenesDict[subclass].join(', ') || '无'}</p>`;
+                                resultsHtml += `<p>匹配到的转录因子: ${tfMatchingGenesDict[subclass].join(', ') || '无'}</p>`;
+                                resultsHtml += `</div>`;
+                            } else {
+                                resultsHtml += `<p><strong>${subclass}:</strong> ${score}</p>`;
+                                resultsHtml += `<div class="matching-genes">`;
+                                resultsHtml += `<p>匹配到的基因: ${matchingGenesDict[subclass].join(', ') || '无'}</p>`;
+                                resultsHtml += `</div>`;
+                            }
+                            
+                            resultsHtml += `</div>`;
+                        }
+                        
+                        resultsHtml += `</div><hr>`;
+                    } catch (clusterError) {
+                        console.error(`处理Cluster ${cluster}时出错:`, clusterError);
+                        resultsHtml += `<div class="result-item">`;
+                        resultsHtml += `<h4>Cluster ${cluster}</h4>`;
+                        resultsHtml += `<div class="alert alert-danger">处理该Cluster时出错: ${clusterError.message}</div>`;
+                        resultsHtml += `</div><hr>`;
                     }
                 }
                 
-                // 显示所有匹配分数
-                resultsHtml += `<div class="result-heading mt-3">与所有细胞类型的匹配分数:</div>`;
-                
-                // 按分数排序
-                const sortedMatches = Object.entries(matches)
-                    .sort((a, b) => b[1] - a[1])
-                    .filter(([_, score]) => score > 0);
-                
-                for (const [subclass, score] of sortedMatches) {
-                    resultsHtml += `<div class="mt-2">`;
-                    
-                    if (doSecondMatch) {
-                        const tfScore = calculateMatchingScore(genes, tfDict[subclass], true).score;
-                        resultsHtml += `<p><strong>${subclass}:</strong></p>`;
-                        resultsHtml += `<p>Marker基因匹配分数: ${score}</p>`;
-                        resultsHtml += `<p>转录因子匹配分数: ${tfScore}</p>`;
-                        resultsHtml += `<div class="matching-genes">`;
-                        resultsHtml += `<p>匹配到的marker基因: ${matchingGenesDict[subclass].join(', ') || '无'}</p>`;
-                        resultsHtml += `<p>匹配到的转录因子: ${tfMatchingGenesDict[subclass].join(', ') || '无'}</p>`;
-                        resultsHtml += `</div>`;
-                    } else {
-                        resultsHtml += `<p><strong>${subclass}:</strong> ${score}</p>`;
-                        resultsHtml += `<div class="matching-genes">`;
-                        resultsHtml += `<p>匹配到的基因: ${matchingGenesDict[subclass].join(', ') || '无'}</p>`;
-                        resultsHtml += `</div>`;
-                    }
-                    
-                    resultsHtml += `</div>`;
-                }
-                
-                resultsHtml += `</div><hr>`;
+                // 显示结果
+                resultsContent.innerHTML = resultsHtml;
+            } catch (error) {
+                console.error("执行匹配分析时出错:", error);
+                resultsContent.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h5>匹配分析出错</h5>
+                        <p>${error.message}</p>
+                        <p>如果您使用的是移动设备，请尝试：</p>
+                        <ul>
+                            <li>使用电脑浏览器访问</li>
+                            <li>减少数据量（如使用较小的数据文件）</li>
+                            <li>使用Chrome或Safari最新版本</li>
+                        </ul>
+                    </div>
+                `;
+                resultsContainer.classList.remove('d-none');
+            } finally {
+                // 隐藏加载动画
+                loadingSpinner.style.display = 'none';
+                resultsContainer.classList.remove('d-none');
             }
-            
-            // 显示结果
-            resultsContent.innerHTML = resultsHtml;
-            
-            // 隐藏加载动画，显示结果
-            loadingSpinner.style.display = 'none';
-            resultsContainer.classList.remove('d-none');
         }
         
         // 加载默认参考数据
@@ -449,12 +547,19 @@ cluster	gene
                     return response.arrayBuffer();
                 })
                 .then(buffer => {
-                    const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
-                    referenceData = XLSX.utils.sheet_to_json(worksheet);
-                    
-                    statusDiv.innerHTML = '<div class="alert alert-success">默认参考数据已成功加载!</div>';
+                    try {
+                        console.log("开始解析Excel文件...");
+                        const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        referenceData = XLSX.utils.sheet_to_json(worksheet);
+                        console.log("Excel文件解析完成，数据条数:", referenceData.length);
+                        
+                        statusDiv.innerHTML = '<div class="alert alert-success">默认参考数据已成功加载! 共加载 ' + referenceData.length + ' 条数据</div>';
+                    } catch (parseError) {
+                        console.error("解析Excel文件出错:", parseError);
+                        statusDiv.innerHTML = `<div class="alert alert-danger">解析Excel文件出错: ${parseError.message}</div>`;
+                    }
                 })
                 .catch(error => {
                     statusDiv.innerHTML = `<div class="alert alert-danger">错误: ${error.message}</div>`;
