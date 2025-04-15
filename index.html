@@ -103,6 +103,9 @@
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="ref-manual-tab" data-bs-toggle="tab" data-bs-target="#ref-manual" type="button" role="tab">手动输入</button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="ref-default-tab" data-bs-toggle="tab" data-bs-target="#ref-default" type="button" role="tab">使用默认数据</button>
+                        </li>
                     </ul>
                     
                     <div class="tab-content mt-3">
@@ -119,6 +122,13 @@
 subclass_label	subclass.markers.combo	subclass.tf.markers.combo
 类型1	基因1,基因2,基因3	转录因子1,转录因子2
 类型2	基因4,基因5,基因6	转录因子3,转录因子4</div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="ref-default" role="tabpanel">
+                            <div class="alert alert-info">
+                                <p>点击下方按钮使用仓库中的默认参考数据文件 (brain.xlsx)</p>
+                                <button id="loadDefaultRef" class="btn btn-primary">加载默认参考数据</button>
+                                <div id="defaultRefStatus" class="mt-2"></div>
                             </div>
                         </div>
                     </div>
@@ -424,6 +434,33 @@ cluster	gene
             resultsContainer.classList.remove('d-none');
         }
         
+        // 加载默认参考数据
+        function loadDefaultReferenceData() {
+            const statusDiv = document.getElementById('defaultRefStatus');
+            statusDiv.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"><span class="visually-hidden">加载中...</span></div> 正在加载默认参考数据...';
+            
+            // 尝试从仓库加载brain.xlsx文件
+            fetch('brain.xlsx')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('无法加载默认参考数据文件');
+                    }
+                    return response.arrayBuffer();
+                })
+                .then(buffer => {
+                    const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    referenceData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    statusDiv.innerHTML = '<div class="alert alert-success">默认参考数据已成功加载!</div>';
+                })
+                .catch(error => {
+                    statusDiv.innerHTML = `<div class="alert alert-danger">错误: ${error.message}</div>`;
+                    console.error('加载默认参考数据时出错:', error);
+                });
+        }
+        
         // 事件监听器
         document.addEventListener('DOMContentLoaded', function() {
             // 参考数据文件上传
@@ -464,6 +501,9 @@ cluster	gene
             
             // 执行匹配按钮点击
             document.getElementById('matchButton').addEventListener('click', performMatching);
+            
+            // 加载默认参考数据按钮点击
+            document.getElementById('loadDefaultRef').addEventListener('click', loadDefaultReferenceData);
         });
     </script>
 </body>
