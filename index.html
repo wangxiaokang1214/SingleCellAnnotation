@@ -113,7 +113,6 @@
                             <label for="refDataFile" class="form-label">上传参考数据文件 (Excel或CSV格式)</label>
                             <input class="form-control" type="file" id="refDataFile" accept=".xlsx,.xls,.csv">
                             <small class="text-muted">文件必须包含 subclass_label, subclass.markers.combo 和 subclass.tf.markers.combo 列</small>
-                            <small class="text-muted">默认数据来源于A high-resolution transcriptomic and spatial atlas of cell types in the whole mouse brain | Nature Supplementary Table 7</small>
                         </div>
                         <div class="tab-pane fade" id="ref-manual" role="tabpanel">
                             <label class="form-label">手动输入参考数据</label>
@@ -130,6 +129,7 @@ subclass_label	subclass.markers.combo	subclass.tf.markers.combo
                                 <p>点击下方按钮使用仓库中的默认参考数据文件 (brain.xlsx)</p>
                                 <button id="loadDefaultRef" class="btn btn-primary">加载默认参考数据</button>
                                 <div id="defaultRefStatus" class="mt-2"></div>
+                                <small class="text-muted">默认数据来源于A high-resolution transcriptomic and spatial atlas of cell types in the whole mouse brain | Nature Supplementary Table 7</small>
                             </div>
                         </div>
                     </div>
